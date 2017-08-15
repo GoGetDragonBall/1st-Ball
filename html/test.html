@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>하하하</title>
+    <script src="http://code.jquery.com/jquery-1.11.2.min.js"></script>
+    <script src="http://code.jquery.com/jquery-migrate-1.2.1.min.js"></script>
+  </head>
+  <body>
+    <h1>출력입니다.</h1>
+    <p> Name is {{.Name}} </p>
+    <p> City is {{.City}} </p>
+    <h1>입력입니다.</h1>
+
+    <form class="" action="/test/input" method="post">
+      <input type="text" name="test" value="">
+      <input type="submit" name="submit" value="서브밋">
+    </form>
+  </body>
+  <input type="submit" name="submit" value="ajax 테스트" onclick="ajax()">
+  <input type="submit" name="submit" value="ajax 테스트" onclick="ajaxPost()">
+  <script type="text/javascript">
+    function ajax(){
+      var data = {test : "ajaxGetData"};
+
+      $.ajax({
+            type : "GET",
+            url : "/test/input2",
+            data : data,
+            dataType : "json",
+            error : function(){
+                console.log('통신실패!!');
+            },
+            success : function(data){
+                console.log(data);
+            }
+
+        });
+    }
+    function ajaxPost(){
+      var data = {test : "ajaxPostData"};
+
+      $.ajax({
+            type : "post",
+            url : "/test/input2",
+            data : data,
+            dataType : "json",
+            error : function(){
+                console.log('통신실패!!');
+            },
+            success : function(data){
+                console.log(data);
+            }
+
+        });
+    }
+  </script>
+</html>
