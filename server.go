@@ -1,93 +1,52 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
-	"fmt"
-	"html/template"
-	"io"
+	"log"
 	"net/http"
-	"strings"
-	"time"
+	"os"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
-func hello(w http.ResponseWriter, r *http.Request) {
-	io.WriteString(w, "Hello world!")
-}
+var configDir = "conf/"
 
-func test(w http.ResponseWriter, r *http.Request) {
-	//Parsing HTML
-	t, err := template.ParseFiles("html/test.html")
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	items := struct {
-		Name string
-		City string
-	}{
-		Name: "MyName",
-		City: "MyCity",
-	}
-
-	t.Execute(w, items)
-}
-
-type Data struct {
-	Name string
-}
-
-func testInput(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()
-	s := r.FormValue("test")
-	fmt.Println(s)
-	return
-}
-func testInput2(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("input2" + r.Method)
-	fmt.Println(r.Method)
-	r.ParseForm()
-
-	data := Data{"ajax 리턴 데이터! 입력된 값은 " + r.FormValue("test")}
-	w.Header().Set("Content-type", "application/json")
-	err := json.NewEncoder(w).Encode(&data)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
-
-var mux map[string]func(http.ResponseWriter, *http.Request)
-
-func defineMux() {
-	mux["/"] = hello
-	mux["/test"] = test
-	mux["/test/input"] = testInput
-	mux["/test/input2"] = testInput2
+type DatabaseConf struct {
+	DriverName, DataSourceName string
 }
 
 func main() {
-	server := &http.Server{
-		Addr:           ":8080",
-		Handler:        &myHandler{},
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   10 * time.Second,
-		MaxHeaderBytes: 1 << 20,
+	dbConfigFile, err := os.Open(configDir + "database.json")
+	if err != nil {
+		panic(err)
 	}
-	mux = make(map[string]func(http.ResponseWriter, *http.Request))
-	defineMux()
 
-	server.ListenAndServe()
-}
-
-type myHandler struct{}
-
-func (*myHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(r.URL.String())
-	str := strings.Split(r.URL.String(), "?")[0]
-	if h, ok := mux[str]; ok {
-
-		h(w, r)
-		return
+	var dbConf DatabaseConf
+	dbConfigDecoder := json.NewDecoder(dbConfigFile)
+	err = dbConfigDecoder.Decode(&dbConf)
+	if err != nil {
+		panic(err)
 	}
-	io.WriteString(w, "My server: "+r.URL.String())
 
+	db, err := sql.Open(dbConf.DriverName, dbConf.DataSourceName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	var name string
+	var nickname string
+	var email string
+	row := db.QueryRow("SELECT name, nickname, email FROM users")
+	if err = row.Scan(&name, &nickname, &email); err != nil {
+		log.Fatal(err)
+	}
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		body := []byte("name: " + name + " nickname: " + nickname + " email: " + email)
+		w.Write(body)
+	})
+
+	http.ListenAndServe(":9000", nil)
 }
