@@ -3,6 +3,8 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -31,21 +33,35 @@ func main() {
 
 	db, err := sql.Open(dbConf.DriverName, dbConf.DataSourceName)
 	if err != nil {
+		log.Println("in")
 		log.Fatal(err)
 	}
 	defer db.Close()
 
-	var name string
-	var nickname string
-	var email string
-	row := db.QueryRow("SELECT name, nickname, email FROM users")
-	if err = row.Scan(&name, &nickname, &email); err != nil {
-		log.Fatal(err)
-	}
+	http.HandleFunc("/users/signup", func(w http.ResponseWriter, r *http.Request) {
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		body := []byte("name: " + name + " nickname: " + nickname + " email: " + email)
-		w.Write(body)
+		switch r.Method {
+		case "POST":
+
+			//password := r.FormValue("password")
+			name := r.FormValue("name")
+			nickname := r.FormValue("nickname")
+			email := r.FormValue("email")
+
+			result, err := db.Exec("INSERT INTO users (name,nickname,email) values(?,?,?)", name, nickname, email)
+
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println(result)
+
+		case "GET":
+			content, err := ioutil.ReadFile("html/user_insert.html")
+			if err != nil {
+				log.Fatal(err)
+			}
+			w.Write(content)
+		}
 	})
 
 	http.ListenAndServe(":9000", nil)
