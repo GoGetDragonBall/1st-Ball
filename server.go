@@ -1,16 +1,50 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/mysql"
 	_ "github.com/go-sql-driver/mysql"
+	"time"
+	"golang.org/x/crypto/bcrypt"
 )
+
+// FIXME: 한글 안 들어감. ㅅㅂㅅㅂㅅㅂ
+type User struct {
+	ID uint
+	Name string
+	Nickname string
+	Email string `gorm:"type:varchar(100)"`
+	UserAuthorizationKeys []UserAuthorizationKey
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt time.Time
+}
+
+type UserAuthorizationKey struct {
+	ID uint
+	AuthorizationKey string `gorm:"type:varchar(300)"`
+	TypeId uint
+	UserId uint
+	UserAuthorizationKeyTypes []UserAuthorizationKeyType `gorm:"ForeignKey:ID;AssociationForeignKey:TypeId"`
+	Users []User `gorm:"ForeignKey:ID;AssociationForeignKey:UserId"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt time.Time
+}
+
+type UserAuthorizationKeyType struct {
+	ID uint
+	Name string `gorm:"type:varchar(100)"`
+	UserAuthorizationKeys []UserAuthorizationKey
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt time.Time
+}
 
 var configDir = "conf/"
 
@@ -31,7 +65,7 @@ func main() {
 		panic(err)
 	}
 
-	db, err := sql.Open(dbConf.DriverName, dbConf.DataSourceName)
+	db, err := gorm.Open(dbConf.DriverName, dbConf.DataSourceName)
 	if err != nil {
 		log.Println("in")
 		log.Fatal(err)
@@ -42,19 +76,42 @@ func main() {
 
 		switch r.Method {
 		case "POST":
-
-			//password := r.FormValue("password")
 			name := r.FormValue("name")
+			password := r.FormValue("password")
 			nickname := r.FormValue("nickname")
 			email := r.FormValue("email")
 
-			result, err := db.Exec("INSERT INTO users (name,nickname,email) values(?,?,?)", name, nickname, email)
-
+			bcryptedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 			if err != nil {
 				log.Fatal(err)
 			}
-			fmt.Println(result)
 
+			var authorizationKeyBcryptType UserAuthorizationKeyType
+			db.Where("name = ?", "bcrypt").Find(&authorizationKeyBcryptType)
+
+			user := User{
+				Name: name,
+				Nickname: nickname,
+				Email: email,
+				UserAuthorizationKeys: []UserAuthorizationKey{
+					{AuthorizationKey: string(bcryptedPassword), TypeId: authorizationKeyBcryptType.ID},
+				},
+			}
+
+			userCreateErrs := db.Create(&user).GetErrors()
+			if len(userCreateErrs) != 0 {
+				for err := range userCreateErrs {
+					log.Println(err)
+				}
+
+				w.WriteHeader(500)
+				w.Write([]byte("{\"message\":\"WTF\"}"))
+			} else {
+				w.WriteHeader(200)
+				w.Write([]byte("{\"message\":\"Good\"}"))
+			}
+
+			return
 		case "GET":
 			content, err := ioutil.ReadFile("html/user_insert.html")
 			if err != nil {

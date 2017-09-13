@@ -3,8 +3,8 @@
 drop table if exists `users`;
 create table users (
        id int not null auto_increment,
-       name varchar(50) not null,
-       nickname varchar(50) not null,
+       name varchar(50) character set utf8 not null,
+       nickname varchar(50) character set utf8 not null,
        email varchar(100) not null,
        created_at datetime not null default current_timestamp,
        updated_at datetime not null default current_timestamp,
